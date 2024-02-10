@@ -8,8 +8,17 @@ datasource db {
 }
 
 model Poll {
-  id        String   @id @default(uuid())
-  title     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id         String       @id @default(uuid())
+  title      String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @default(now())
+  options PollOption[] //Não gera campo no banco de dados
+}
+
+model PollOption {
+  id     String @id @default(uuid())
+  title  String
+  pollId String
+
+  poll Poll @relation(fields: [pollId], references: [id])
 }
