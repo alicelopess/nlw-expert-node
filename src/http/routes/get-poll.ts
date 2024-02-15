@@ -45,9 +45,17 @@ export default async function getPoll(app: FastifyInstance) {
         return reply 
         .code(200)
         .send({
-            poll,
-            votes
+            poll: {
+                id: poll.id,
+                title: poll.title,
+                options: poll.options.map(option => {
+                    return {
+                        id: option.id,
+                        title: option.title,
+                        score: (option.id in votes) ? votes[option.id] : 0
+                    }
+                })
+            }
         })
-    
     })
 }
