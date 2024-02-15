@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import prisma from '../../lib/prisma'
 import { z } from 'zod'
 import { redis } from '../../lib/redis'
+import { voting } from '../../utils/voting-pub-sub'
 
 //O usuário pode votar em uma enquete específica - ID da Enquete é necessário
 //A url tem que ser autoexplicativa
@@ -49,7 +50,12 @@ export default async function voteOnPoll(app: FastifyInstance) {
                     }
                 })
 
-                await redis.zincrby(pollId, -1, userPreviousVoteOnPoll.pollOptionId)
+                const votes = await redis.zincrby(pollId, -1, userPreviousVoteOnPoll.pollOptionId)
+
+                voting.publish(pollId, {
+                    pollOptionId: userPreviousVoteOnPoll.pollOptionId,
+                    votes: Number(votes),
+                })
 
             } else if (userPreviousVoteOnPoll) { //Verificar se o usuário está votando na mesma opção
                 return reply.status(400).send({message: 'You already voted on this poll!'})
@@ -76,11 +82,15 @@ export default async function voteOnPoll(app: FastifyInstance) {
         })
 
         //Criar Ranking com Redis
-        await redis.zincrby(pollId, 1, pollOptionId)
+        const votes = await redis.zincrby(pollId, 1, pollOptionId)
+
+        voting.publish(pollId, {
+            pollOptionId,
+            votes: Number(votes),
+        })
 
         return reply 
         .code(201)
         .send()
-    
     })
 }
