@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { randomUUID } from 'crypto' 
 import prisma from '../../lib/prisma'
 import { z } from 'zod'
+import { redis } from '../../lib/redis'
 
 //O usuário pode votar em uma enquete específica - ID da Enquete é necessário
 //A url tem que ser autoexplicativa
@@ -25,6 +26,35 @@ export default async function voteOnPoll(app: FastifyInstance) {
         const { pollOptionId } = voteOnPollBody.parse(request.body)
         
         let { sessionId } = request.cookies
+
+        //Validações - Regra de negócio da aplicação (não deve ser no db)
+        if(sessionId) {
+            //Verificar se o usuário já votou na enquete
+            const userPreviousVoteOnPoll = await prisma.vote.findUnique({
+                where: {
+                    sessionId_pollId: {
+                        sessionId,
+                        pollId
+                    }
+                }
+            })
+
+            //Verificar se o usuário está trocando de opção
+            if(userPreviousVoteOnPoll && userPreviousVoteOnPoll.pollOptionId != pollOptionId) {
+                //Apagar anterior
+                //Criar novo voto
+                await prisma.vote.delete({
+                    where: {
+                        id: userPreviousVoteOnPoll.id,
+                    }
+                })
+
+                await redis.zincrby(pollId, -1, userPreviousVoteOnPoll.pollOptionId)
+
+            } else if (userPreviousVoteOnPoll) { //Verificar se o usuário está votando na mesma opção
+                return reply.status(400).send({message: 'You already voted on this poll!'})
+            }
+        }
         
         if(!sessionId) {
             sessionId = randomUUID()
@@ -44,6 +74,9 @@ export default async function voteOnPoll(app: FastifyInstance) {
                 pollOptionId,
             }
         })
+
+        //Criar Ranking com Redis
+        await redis.zincrby(pollId, 1, pollOptionId)
 
         return reply 
         .code(201)
