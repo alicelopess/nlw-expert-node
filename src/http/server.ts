@@ -1,11 +1,19 @@
 import { fastify } from 'fastify'
+import cookie from '@fastify/cookie'
 import createPoll from '../http/routes/create-poll'
 import getPoll from './routes/get-poll'
+import voteOnPoll from './routes/vote-on-poll'
 
 const app = fastify()
 
+app.register(cookie, {
+    secret: "polls-api-nlw", // for cookies signature
+    hook: 'onRequest', 
+  })
+
 app.register(createPoll)
 app.register(getPoll)
+app.register(voteOnPoll)
 
 app.get('/hello', () => {
     return 'Hello, NLW!'
